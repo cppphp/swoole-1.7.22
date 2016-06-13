@@ -144,7 +144,25 @@ int swServer_master_onAccept(swReactor *reactor, swEvent *event)
         }
         else
         {
-            reactor_id = new_fd % serv->reactor_num;
+			//by qifei
+			char *ip;
+			unsigned long ipnum;
+			int port;
+			if (listen_host->type == SW_SOCK_TCP) {
+				ip = inet_ntoa(client_addr.addr.inet_v4.sin_addr);
+				port = ntohs(client_addr.addr.inet_v4.sin_port);
+			} else {
+				char tmp[INET6_ADDRSTRLEN];
+				if (inet_ntop(AF_INET6, &client_addr.addr.inet_v6.sin6_addr, tmp, sizeof(tmp)) == NULL) {
+					ip = "";
+				} else {
+					ip = strdup(tmp);
+				}
+				port = ntohs(client_addr.addr.inet_v6.sin6_port);
+			}
+			ipnum = htonl(inet_addr(ip));
+			reactor_id = (ipnum + port + new_fd) % serv->reactor_num;
+			swTrace("fd:%d, ip:%s, port:%d -> reactor_id:%d", new_fd, ip, port, reactor_id);
         }
 
         //add to connection_list
