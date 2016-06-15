@@ -687,8 +687,7 @@ static sw_inline uint32_t swServer_worker_schedule(swServer *serv, uint32_t sche
 		unsigned long ipnum = htonl(inet_addr(ip));
 		unsigned long new_schedule_key = ipnum + port + schedule_key;
         target_worker_id = new_schedule_key % serv->worker_num;
-		//php_error_docref(NULL TSRMLS_CC, E_WARNING, "fd:%d, ip:%s, port:%d, schedule_key:%lu -> worker_id:%d", schedule_key, ip, port, new_schedule_key, target_worker_id);
-		swTrace("fd:%d, ip:%s, port:%d, schedule_key:%lu -> worker_id:%d", schedule_key, ip, port, new_schedule_key, target_worker_id);
+		swTrace("DISPATCH_FDMOD: fd=%d|session_id=%d|ip=%s|port=%d|schedule_key=%lu -> worker_id=%d", schedule_key, conn->session_id, ip, port, new_schedule_key, target_worker_id);
     }
     //Using the IP touch access to hash
     else if (serv->dispatch_mode == SW_DISPATCH_IPMOD)
