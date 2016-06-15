@@ -145,7 +145,9 @@ int swWorker_onTask(swFactory *factory, swEventData *task)
     factory->last_from_id = task->info.from_id;
     //worker busy
     serv->workers[SwooleWG.id].status = SW_WORKER_BUSY;
-
+	//by qifei
+	swTrace("task: type=%d|fd=%d|len=%d|from_id=%d|data=%s\n", task->info.type, task->info.fd, task->info.len, task->info.from_id, task->data);
+	
     switch (task->info.type)
     {
     //no buffer

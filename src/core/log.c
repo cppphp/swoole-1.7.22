@@ -106,6 +106,7 @@ void swLog_put(int level, char *cnt)
     }
 }
 
+//by qifei
 sw_inline char* getDateTime()
 {
 	static char nowtime[20];

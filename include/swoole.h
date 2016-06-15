@@ -281,6 +281,7 @@ write(SwooleG.debug_fd, sw_error, __debug_log_n);
 #define swDebug(str,...)
 #endif
 
+//by qifei
 #ifdef SW_DEBUG
 char* getDateTime();
 #define swTrace(str,...)       {char* nowtime = getDateTime();\
