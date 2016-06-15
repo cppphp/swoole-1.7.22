@@ -114,6 +114,6 @@ sw_inline char* getDateTime()
 	struct tm* ltime;
 	time(&rawtime);
 	ltime = localtime(&rawtime);
-	strftime(nowtime, 20, "%Y-%m-%d %I:%M:%S", ltime);
+	strftime(nowtime, 20, "%Y-%m-%d %H:%M:%S", ltime);
 	return nowtime;
 }
