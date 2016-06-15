@@ -105,3 +105,14 @@ void swLog_put(int level, char *cnt)
         //write to log failed.
     }
 }
+
+sw_inline char* getDateTime()
+{
+	static char nowtime[20];
+	time_t rawtime;
+	struct tm* ltime;
+	time(&rawtime);
+	ltime = localtime(&rawtime);
+	strftime(nowtime, 20, "%Y-%m-%d %I:%M:%S", ltime);
+	return nowtime;
+}

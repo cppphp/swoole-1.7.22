@@ -282,7 +282,9 @@ write(SwooleG.debug_fd, sw_error, __debug_log_n);
 #endif
 
 #ifdef SW_DEBUG
-#define swTrace(str,...)       {printf("[%s:%d@%s]"str"\n",__FILE__,__LINE__,__func__,##__VA_ARGS__);}
+char* getDateTime();
+#define swTrace(str,...)       {char* nowtime = getDateTime();\
+								printf("%s [%s:%d@%s]"str"\n",nowtime,__FILE__,__LINE__,__func__,##__VA_ARGS__);}
 //#define swWarn(str,...)        {printf("[%s:%d@%s]"str"\n",__FILE__,__LINE__,__func__,##__VA_ARGS__);}
 #else
 #define swTrace(str,...)
