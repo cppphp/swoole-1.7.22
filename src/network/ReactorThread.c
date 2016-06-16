@@ -473,6 +473,14 @@ int swReactorThread_send2worker(void *data, int len, uint16_t target_worker_id)
 
     int ret = -1;
     swWorker *worker = &(serv->workers[target_worker_id]);
+	
+	//by qifei
+	static swHashMap* new_conn_queue = NULL;
+	if (new_conn_queue == NULL) {
+		new_conn_queue = swHashMap_new(SW_HASHMAP_INIT_BUCKET_N, NULL);
+	}
+	swHashMap* work_new_conn_queue;
+	int fd;
 
     //reactor thread
     if (SwooleTG.type == SW_THREAD_REACTOR)
@@ -486,6 +494,54 @@ int swReactorThread_send2worker(void *data, int len, uint16_t target_worker_id)
         lock->lock(lock);
 
         swBuffer *buffer = serv->connection_list[pipe_fd].in_buffer;
+		swEventData *task = (swEventData*)data;
+		
+		//worker完成了max_request次连接进入了退出状态，阻止新连接进入 by qifei
+		swTrace("send2worker: worker_status=%d|info_type=%d|fd=%d|from_id=%d|pipe_fd=%d|buffer_len=%d",
+				worker->status, task->info.type, task->info.fd, task->info.from_id, pipe_fd, buffer->length);
+		
+		work_new_conn_queue = swHashMap_find_int(new_conn_queue, worker->id);
+		if (work_new_conn_queue == NULL && worker->status == SW_WORKER_DEL) {
+			work_new_conn_queue = swHashMap_new(SW_HASHMAP_INIT_BUCKET_N, NULL);
+			swHashMap_add_int(new_conn_queue, worker->id, work_new_conn_queue, NULL);
+		}
+		
+		if (worker->status == SW_WORKER_DEL) {
+			swTrace("send2worker: worker status is del|buffer_len=%d|pipe_buffer_size=%d|pipe_fd=%d", buffer->length, serv->pipe_buffer_size, pipe_fd);
+			if (task->info.type == SW_EVENT_CONNECT) {
+				swTrace("send2worker: new connect append_pipe_buffer|fd=%d|pipe_fd=%d", task->info.fd, pipe_fd);
+				swHashMap_add_int(work_new_conn_queue, task->info.fd, task->info.fd, NULL);
+				goto append_pipe_buffer;
+			} else {
+				fd = swHashMap_find_int(work_new_conn_queue, task->info.fd);
+				if (fd == NULL) {
+					swTrace("send2worker: old connect direct write|fd=%d|pipe_fd=%d", task->info.fd, pipe_fd);
+					ret = write(pipe_fd, (void *) data, len);
+#ifdef HAVE_KQUEUE
+					if (ret < 0 && (errno == EAGAIN || errno == ENOBUFS))
+#else
+					if (ret < 0 && errno == EAGAIN)
+#endif
+					{
+						if (thread->reactor.set(&thread->reactor, pipe_fd, SW_FD_PIPE | SW_EVENT_READ | SW_EVENT_WRITE) < 0)
+						{
+							swSysError("reactor->set(%d, PIPE | READ | WRITE) failed.", pipe_fd);
+						}
+						swYield();
+						swSocket_wait(pipe_fd, SW_SOCKET_OVERFLOW_WAIT, SW_EVENT_WRITE);
+						return ret;
+					}
+				} else {
+					swTrace("send2worker: new connect package append_pipe_buffer|fd=%d|pipe_fd=%d", task->info.fd, pipe_fd);
+					goto append_pipe_buffer;
+				}
+			}
+		} else {
+			if (work_new_conn_queue != NULL) {
+				swHashMap_free(work_new_conn_queue);
+			}
+		}
+		
         if (swBuffer_empty(buffer))
         {
             ret = write(pipe_fd, (void *) data, len);
@@ -504,9 +560,16 @@ int swReactorThread_send2worker(void *data, int len, uint16_t target_worker_id)
         }
         else
         {
+			if (worker->status != SW_WORKER_DEL) {
+				swTrace("send2worker: worker status is not del, send buffer|buffer_len=%d|pipe_buffer_size=%d", buffer->length, serv->pipe_buffer_size);
+				if (thread->reactor.set(&thread->reactor, pipe_fd, SW_FD_PIPE | SW_EVENT_READ | SW_EVENT_WRITE) < 0) {
+                    swSysError("send buffer reactor->set(%d, PIPE | READ | WRITE) failed.", pipe_fd);
+                }
+			}
             append_pipe_buffer:
             if (buffer->length > serv->pipe_buffer_size)
             {
+				swTrace("send2worker: buffer full|buffer_len=%d|pipe_buffer_size=%d", buffer->length, serv->pipe_buffer_size);
                 swYield();
                 swSocket_wait(pipe_fd, SW_SOCKET_OVERFLOW_WAIT, SW_EVENT_WRITE);
             }
@@ -517,6 +580,7 @@ int swReactorThread_send2worker(void *data, int len, uint16_t target_worker_id)
             }
             else
             {
+				swTrace("send2worker: append to pipe_buffer ok|buffer_len=%d", buffer->length);
                 ret = SW_OK;
             }
         }

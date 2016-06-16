@@ -137,6 +137,8 @@ int swWorker_onTask(swFactory *factory, swEventData *task)
     swServer *serv = factory->ptr;
     swString *package = NULL;
     swDgramPacket *header;
+	//by qifei
+	static unsigned int tcp_conn_count = 0;
 
 #ifdef SW_USE_OPENSSL
     swConnection *conn;
@@ -144,9 +146,13 @@ int swWorker_onTask(swFactory *factory, swEventData *task)
 
     factory->last_from_id = task->info.from_id;
     //worker busy
-    serv->workers[SwooleWG.id].status = SW_WORKER_BUSY;
+	if (serv->workers[SwooleWG.id].status != SW_WORKER_DEL) {
+		serv->workers[SwooleWG.id].status = SW_WORKER_BUSY;
+	}
 	//by qifei
-	swTrace("task: type=%d|fd=%d|len=%d|from_id=%d|data=%s\n", task->info.type, task->info.fd, task->info.len, task->info.from_id, task->data);
+	swTrace("task: worker_id=%d|pid=%d|info_type=%d|fd=%d|len=%d|from_id=%d|data=%s|tcp_conn_count=%d|request_count=%d|max_request=%d",
+			SwooleWG.worker->id, SwooleWG.worker->pid, task->info.type, task->info.fd, task->info.len, task->info.from_id,
+			task->data, tcp_conn_count, SwooleWG.request_count, SwooleWG.max_request);
 	
     switch (task->info.type)
     {
@@ -162,8 +168,6 @@ int swWorker_onTask(swFactory *factory, swEventData *task)
         do_task:
         {
             serv->onReceive(serv, task);
-            SwooleWG.request_count++;
-            sw_atomic_fetch_add(&SwooleStats->request_count, 1);
         }
         if (task->info.type == SW_EVENT_PACKAGE_END)
         {
@@ -222,6 +226,9 @@ int swWorker_onTask(swFactory *factory, swEventData *task)
             bzero(&conn->ssl_client_cert, sizeof(conn->ssl_client_cert.str));
         }
 #endif
+		tcp_conn_count--;
+		SwooleWG.request_count++;
+		sw_atomic_fetch_add(&SwooleStats->request_count, 1);
         factory->end(factory, task->info.fd);
         break;
 
@@ -235,6 +242,7 @@ int swWorker_onTask(swFactory *factory, swEventData *task)
             conn->ssl_client_cert.size = conn->ssl_client_cert.length = task->info.len;
         }
 #endif
+		tcp_conn_count++;
         if (serv->onConnect)
         {
             serv->onConnect(serv, task->info.fd, task->info.from_id);
@@ -255,14 +263,19 @@ int swWorker_onTask(swFactory *factory, swEventData *task)
     }
 
     //worker idle
-    serv->workers[SwooleWG.id].status = SW_WORKER_IDLE;
-
+	if (serv->workers[SwooleWG.id].status != SW_WORKER_DEL) {
+		serv->workers[SwooleWG.id].status = SW_WORKER_IDLE;
+	}
+	//by qifei
     //maximum number of requests, process will exit.
     if (!SwooleWG.run_always && SwooleWG.request_count >= SwooleWG.max_request)
     {
-        SwooleG.running = 0;
-        SwooleG.main_reactor->running = 0;
+		serv->workers[SwooleWG.id].status = SW_WORKER_DEL;
     }
+	if (tcp_conn_count==0 && serv->workers[SwooleWG.id].status == SW_WORKER_DEL) {
+		SwooleG.running = 0;
+        SwooleG.main_reactor->running = 0;
+	}
     return SW_OK;
 }
 
