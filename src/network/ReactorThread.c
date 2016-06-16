@@ -475,12 +475,14 @@ int swReactorThread_send2worker(void *data, int len, uint16_t target_worker_id)
     swWorker *worker = &(serv->workers[target_worker_id]);
 	
 	//by qifei
+	/*
 	static swHashMap* new_conn_queue = NULL;
 	if (new_conn_queue == NULL) {
 		new_conn_queue = swHashMap_new(SW_HASHMAP_INIT_BUCKET_N, NULL);
 	}
 	swHashMap* work_new_conn_queue;
 	int fd;
+	*/
 
     //reactor thread
     if (SwooleTG.type == SW_THREAD_REACTOR)
@@ -500,6 +502,7 @@ int swReactorThread_send2worker(void *data, int len, uint16_t target_worker_id)
 		swTrace("send2worker: worker_status=%d|info_type=%d|fd=%d|from_id=%d|pipe_fd=%d|buffer_len=%d",
 				worker->status, task->info.type, task->info.fd, task->info.from_id, pipe_fd, buffer->length);
 		
+		/* by qifei
 		work_new_conn_queue = swHashMap_find_int(new_conn_queue, worker->id);
 		if (work_new_conn_queue == NULL && worker->status == SW_WORKER_DEL) {
 			work_new_conn_queue = swHashMap_new(SW_HASHMAP_INIT_BUCKET_N, NULL);
@@ -523,6 +526,7 @@ int swReactorThread_send2worker(void *data, int len, uint16_t target_worker_id)
 					if (ret < 0 && errno == EAGAIN)
 #endif
 					{
+						swTrace("send2worker: old connect direct write failed|fd=%d|pipe_fd=%d|errno=%d|errmsg=%s", task->info.fd, pipe_fd, errno, strerror(errno));
 						if (thread->reactor.set(&thread->reactor, pipe_fd, SW_FD_PIPE | SW_EVENT_READ | SW_EVENT_WRITE) < 0)
 						{
 							swSysError("reactor->set(%d, PIPE | READ | WRITE) failed.", pipe_fd);
@@ -541,6 +545,7 @@ int swReactorThread_send2worker(void *data, int len, uint16_t target_worker_id)
 				swHashMap_free(work_new_conn_queue);
 			}
 		}
+		*/
 		
         if (swBuffer_empty(buffer))
         {
@@ -560,12 +565,16 @@ int swReactorThread_send2worker(void *data, int len, uint16_t target_worker_id)
         }
         else
         {
+			
+			/* by qifei
 			if (worker->status != SW_WORKER_DEL) {
 				swTrace("send2worker: worker status is not del, send buffer|buffer_len=%d|pipe_buffer_size=%d", buffer->length, serv->pipe_buffer_size);
 				if (thread->reactor.set(&thread->reactor, pipe_fd, SW_FD_PIPE | SW_EVENT_READ | SW_EVENT_WRITE) < 0) {
                     swSysError("send buffer reactor->set(%d, PIPE | READ | WRITE) failed.", pipe_fd);
                 }
 			}
+			*/
+			
             append_pipe_buffer:
             if (buffer->length > serv->pipe_buffer_size)
             {
