@@ -150,9 +150,9 @@ int swWorker_onTask(swFactory *factory, swEventData *task)
 		serv->workers[SwooleWG.id].status = SW_WORKER_BUSY;
 	}
 	//by qifei
-	swTrace("task: worker_id=%d|pid=%d|info_type=%d|fd=%d|len=%d|from_id=%d|data=%s|tcp_conn_count=%d|request_count=%d|max_request=%d",
+	swTrace("task: worker_id=%d|pid=%d|info_type=%d|fd=%d|len=%d|from_id=%d|tcp_conn_count=%d|request_count=%d|max_request=%d",
 			SwooleWG.worker->id, SwooleWG.worker->pid, task->info.type, task->info.fd, task->info.len, task->info.from_id,
-			task->data, tcp_conn_count, SwooleWG.request_count, SwooleWG.max_request);
+			tcp_conn_count, SwooleWG.request_count, SwooleWG.max_request);
 	
     switch (task->info.type)
     {
@@ -272,7 +272,7 @@ int swWorker_onTask(swFactory *factory, swEventData *task)
     {
 		serv->workers[SwooleWG.id].status = SW_WORKER_DEL;
     }
-	if (tcp_conn_count==0 && serv->workers[SwooleWG.id].status == SW_WORKER_DEL) {
+	if (tcp_conn_count<=0 && serv->workers[SwooleWG.id].status == SW_WORKER_DEL) {
 		SwooleG.running = 0;
         SwooleG.main_reactor->running = 0;
 		swNotice("worker will exit|worker_id=%d|pid=%d|tcp_conn_count=%d|request_count=%d|max_request=%d",

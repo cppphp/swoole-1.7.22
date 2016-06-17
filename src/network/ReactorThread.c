@@ -845,6 +845,10 @@ static int swReactorThread_onWrite(swReactor *reactor, swEvent *ev)
     int fd = ev->fd;
 
     swConnection *conn = swServer_connection_get(serv, fd);
+	
+	swTrace("reactor_id=%d|event_type=%d|fd=%d|active=%d|connect_notify=%d|close_notify=%d|close_force=%d|disable_notify=%d",
+			reactor->id, ev->type, fd, conn->active, conn->connect_notify, conn->close_notify, conn->close_force, serv->disable_notify);
+	
     if (conn->active == 0)
     {
         return SW_OK;

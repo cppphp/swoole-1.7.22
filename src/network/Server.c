@@ -128,7 +128,7 @@ int swServer_master_onAccept(swReactor *reactor, swEvent *event)
         }
 #endif
 
-        swTrace("[Master] Accept new connection. maxfd=%d|reactor_id=%d|conn=%d", swServer_get_maxfd(serv), reactor->id, new_fd);
+        swTrace("[Master] Accept new connection. maxfd=%d|reactor_id=%d|listen_type=%d|conn=%d", swServer_get_maxfd(serv), reactor->id, listen_host->type, new_fd);
 
         //too many connection
         if (new_fd >= serv->max_connection)
@@ -162,7 +162,7 @@ int swServer_master_onAccept(swReactor *reactor, swEvent *event)
 			}
 			ipnum = htonl(inet_addr(ip));
 			reactor_id = (ipnum + port + new_fd) % serv->reactor_num;
-			swTrace("fd:%d, ip:%s, port:%d -> reactor_id:%d", new_fd, ip, port, reactor_id);
+			swTrace("dispatch reactor by fd: fd=%d|ip=%s|port=%d -> reactor_id=%d", new_fd, ip, port, reactor_id);
         }
 
         //add to connection_list

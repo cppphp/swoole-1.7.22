@@ -120,6 +120,8 @@ static int swFactoryProcess_dispatch(swFactory *factory, swDispatchData *task)
     uint16_t target_worker_id;
     swServer *serv = SwooleG.serv;
 
+	swTrace("fd=%d|info_type=%d|from_id=%d", task->data.info.fd, task->data.info.type, task->data.info.from_id);
+	
     if (task->target_worker_id < 0)
     {
         schedule_key = task->data.info.fd;
