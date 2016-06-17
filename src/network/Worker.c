@@ -275,6 +275,8 @@ int swWorker_onTask(swFactory *factory, swEventData *task)
 	if (tcp_conn_count==0 && serv->workers[SwooleWG.id].status == SW_WORKER_DEL) {
 		SwooleG.running = 0;
         SwooleG.main_reactor->running = 0;
+		swNotice("worker will exit|worker_id=%d|pid=%d|tcp_conn_count=%d|request_count=%d|max_request=%d",
+				SwooleWG.worker->id, SwooleWG.worker->pid, tcp_conn_count, SwooleWG.request_count, SwooleWG.max_request);
 	}
     return SW_OK;
 }
