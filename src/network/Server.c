@@ -189,9 +189,9 @@ int swServer_master_onAccept(swReactor *reactor, swEvent *event)
         /*
          * [!!!] new_connection function must before reactor->add
          */
+		int events;
         if (serv->factory_mode == SW_MODE_PROCESS)
         {
-            int events;
             if (serv->onConnect && !listen_host->ssl)
             {
                 conn->connect_notify = 1;
@@ -205,13 +205,15 @@ int swServer_master_onAccept(swReactor *reactor, swEvent *event)
         }
         else
         {
-            ret = sub_reactor->add(sub_reactor, new_fd, SW_FD_TCP | SW_EVENT_READ);
+			events = SW_EVENT_READ;
+            ret = sub_reactor->add(sub_reactor, new_fd, SW_FD_TCP | events);
             if (ret >= 0 && serv->onConnect && !listen_host->ssl)
             {
                 swServer_connection_ready(serv, new_fd, reactor->id);
             }
         }
-
+		swTrace("sub_reactor add event: sub_reactor=%d|fd=%d|tcp_event=%d|onConnect=%p|factory_mode=%d|ret=%d",
+				sub_reactor->id, new_fd, events, serv->onConnect, serv->factory_mode, ret);
         if (ret < 0)
         {
             bzero(conn, sizeof(swConnection));
