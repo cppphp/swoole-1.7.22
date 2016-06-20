@@ -168,6 +168,10 @@ int swWorker_onTask(swFactory *factory, swEventData *task)
         do_task:
         {
             serv->onReceive(serv, task);
+			if (serv->dispatch_mode != SW_DISPATCH_FDMOD) {
+				SwooleWG.request_count++;
+				sw_atomic_fetch_add(&SwooleStats->request_count, 1);
+			}
         }
         if (task->info.type == SW_EVENT_PACKAGE_END)
         {
@@ -226,9 +230,11 @@ int swWorker_onTask(swFactory *factory, swEventData *task)
             bzero(&conn->ssl_client_cert, sizeof(conn->ssl_client_cert.str));
         }
 #endif
-		tcp_conn_count--;
-		SwooleWG.request_count++;
-		sw_atomic_fetch_add(&SwooleStats->request_count, 1);
+		if (serv->dispatch_mode == SW_DISPATCH_FDMOD) {
+			tcp_conn_count--;
+			SwooleWG.request_count++;
+			sw_atomic_fetch_add(&SwooleStats->request_count, 1);
+		}
         factory->end(factory, task->info.fd);
         break;
 
@@ -242,7 +248,9 @@ int swWorker_onTask(swFactory *factory, swEventData *task)
             conn->ssl_client_cert.size = conn->ssl_client_cert.length = task->info.len;
         }
 #endif
-		tcp_conn_count++;
+		if (serv->dispatch_mode == SW_DISPATCH_FDMOD) {
+			tcp_conn_count++;
+		}
         if (serv->onConnect)
         {
             serv->onConnect(serv, task->info.fd, task->info.from_id);
@@ -268,15 +276,23 @@ int swWorker_onTask(swFactory *factory, swEventData *task)
 	}
 	//by qifei
     //maximum number of requests, process will exit.
-    if (!SwooleWG.run_always && SwooleWG.request_count >= SwooleWG.max_request)
-    {
-		serv->workers[SwooleWG.id].status = SW_WORKER_DEL;
-    }
-	if (tcp_conn_count==0 && serv->workers[SwooleWG.id].status == SW_WORKER_DEL) {
-		SwooleG.running = 0;
-        SwooleG.main_reactor->running = 0;
-		swNotice("worker will exit|worker_id=%d|pid=%d|tcp_conn_count=%d|request_count=%d|max_request=%d",
-				SwooleWG.worker->id, SwooleWG.worker->pid, tcp_conn_count, SwooleWG.request_count, SwooleWG.max_request);
+	if (serv->dispatch_mode == SW_DISPATCH_FDMOD) {
+		if (!SwooleWG.run_always && SwooleWG.request_count >= SwooleWG.max_request)
+		{
+			serv->workers[SwooleWG.id].status = SW_WORKER_DEL;
+		}
+		if (tcp_conn_count==0 && serv->workers[SwooleWG.id].status == SW_WORKER_DEL) {
+			SwooleG.running = 0;
+			SwooleG.main_reactor->running = 0;
+			swNotice("worker will exit|worker_id=%d|pid=%d|tcp_conn_count=%d|request_count=%d|max_request=%d",
+					SwooleWG.worker->id, SwooleWG.worker->pid, tcp_conn_count, SwooleWG.request_count, SwooleWG.max_request);
+		}
+	} else {
+		if (!SwooleWG.run_always && SwooleWG.request_count >= SwooleWG.max_request)
+		{
+			SwooleG.running = 0;
+			SwooleG.main_reactor->running = 0;
+		}
 	}
     return SW_OK;
 }
