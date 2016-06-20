@@ -128,7 +128,7 @@ int swServer_master_onAccept(swReactor *reactor, swEvent *event)
         }
 #endif
 
-        swTrace("[Master] Accept new connection. maxfd=%d|reactor_id=%d|listen_type=%d|conn=%d", swServer_get_maxfd(serv), reactor->id, listen_host->type, new_fd);
+        swTrace("[Master] Accept new connection maxfd=%d|reactor_id=%d|listen_type=%d|fd=%d", swServer_get_maxfd(serv), reactor->id, listen_host->type, new_fd);
 
         //too many connection
         if (new_fd >= serv->max_connection)

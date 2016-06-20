@@ -256,6 +256,8 @@ static int swReactorEpoll_wait(swReactor *reactor, struct timeval *timeo)
             event.type = events[i].data.u64 >> 32;
             event.socket = swReactor_get(reactor, event.fd);
 
+			swTrace("Event: fd=%d|from_id=%d|type=%d", event.fd, reactor->id, event.type);
+			
             //read
             if (events[i].events & EPOLLIN)
             {

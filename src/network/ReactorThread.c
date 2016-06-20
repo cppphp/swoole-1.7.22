@@ -272,11 +272,19 @@ int swReactorThread_close(swReactor *reactor, int fd)
 {
     swServer *serv = SwooleG.serv;
     swConnection *conn = swServer_connection_get(serv, fd);
-    if (conn == NULL)
+	
+	if (conn == NULL)
     {
         swWarn("[Reactor]connection not found. fd=%d|max_fd=%d", fd, swServer_get_maxfd(serv));
         return SW_ERR;
     }
+	
+#ifdef SW_DEBUG
+	char *ip = swConnection_get_ip(conn);
+	int port = swConnection_get_port(conn);
+#endif
+	swTrace("Close Event fd=%d|from_id=%d|ip=%s|port=%d|removed=%d|connection_num=%d|close_count=%d",
+			fd, reactor->id, ip, port, conn->removed, SwooleStats->connection_num, SwooleStats->close_count);
 
     if (!conn->removed && reactor->del(reactor, fd) < 0)
     {
@@ -285,8 +293,6 @@ int swReactorThread_close(swReactor *reactor, int fd)
 
     sw_atomic_fetch_add(&SwooleStats->close_count, 1);
     sw_atomic_fetch_sub(&SwooleStats->connection_num, 1);
-
-    swTrace("Close Event.fd=%d|from=%d", fd, reactor->id);
 
 #ifdef SW_USE_OPENSSL
     if (conn->ssl)
@@ -385,6 +391,14 @@ static int swReactorThread_onClose(swReactor *reactor, swEvent *event)
     notify_ev.type = SW_EVENT_CLOSE;
 
     swConnection *conn = swServer_connection_get(SwooleG.serv, fd);
+	
+#ifdef SW_DEBUG
+	char *ip = swConnection_get_ip(conn);
+	int port = swConnection_get_port(conn); 
+#endif
+	swTrace("fd=%d|from_id=%d|ip=%s|port=%d|active=%d|disable_notify=%d|connect_notify=%d|event_type=%d",
+			fd, reactor->id, ip, port, conn->active, serv->disable_notify, conn->connect_notify, notify_ev.type);
+	
     if (conn == NULL || conn->active == 0)
     {
         return SW_ERR;
@@ -394,6 +408,13 @@ static int swReactorThread_onClose(swReactor *reactor, swEvent *event)
         swReactorThread_close(reactor, fd);
         return SW_OK;
     }
+	//如果此连接还未执行连接通知先执行连接通知 by qifei
+	else if (conn->connect_notify)
+	{
+		swServer_connection_ready(serv, fd, reactor->id);
+		conn->connect_notify = 0;
+		return reactor->set(reactor, fd, SW_EVENT_TCP | SW_EVENT_READ);
+	}
     else if (reactor->del(reactor, fd) == 0)
     {
         return SwooleG.factory->notify(SwooleG.factory, &notify_ev);
@@ -499,8 +520,8 @@ int swReactorThread_send2worker(void *data, int len, uint16_t target_worker_id)
 		swEventData *task = (swEventData*)data;
 		
 		//worker完成了max_request次连接进入了退出状态，阻止新连接进入 by qifei
-		swTrace("send2worker: worker_status=%d|info_type=%d|fd=%d|from_id=%d|pipe_fd=%d|buffer_len=%d",
-				worker->status, task->info.type, task->info.fd, task->info.from_id, pipe_fd, buffer->length);
+		swTrace("send2worker: worker_id=%d|worker_status=%d|info_type=%d|fd=%d|from_id=%d|pipe_fd=%d|buffer_len=%d",
+				target_worker_id, worker->status, task->info.type, task->info.fd, task->info.from_id, pipe_fd, buffer->length);
 		
 		/* by qifei
 		work_new_conn_queue = swHashMap_find_int(new_conn_queue, worker->id);
@@ -631,7 +652,7 @@ int swReactorThread_send(swSendData *_send)
 
     int fd = conn->fd;
     swReactor *reactor;
-
+	
     if (serv->factory_mode == SW_MODE_SINGLE)
     {
         reactor = &(serv->reactor_threads[0].reactor);
@@ -641,6 +662,13 @@ int swReactorThread_send(swSendData *_send)
         reactor = &(serv->reactor_threads[conn->from_id].reactor);
     }
 
+#ifdef SW_DEBUG
+	char *ip = swConnection_get_ip(conn);
+	int port = swConnection_get_port(conn);
+#endif
+	swTrace("fd=%d|from_id=%d|ip=%s|port=%d|info_type=%d|removed=%d|send_length=%d",
+			fd, reactor->id, ip, port, _send->info.type, conn->removed, _send_length);
+	
     if (swBuffer_empty(conn->out_buffer))
     {
         /**
@@ -1080,6 +1108,8 @@ static int swReactorThread_onReceive_buffer_check_length(swReactor *reactor, swE
     swConnection *conn = swServer_connection_get(serv, event->fd);
     swProtocol *protocol = &serv->protocol;
 
+	swTrace("fd=%d|from_id=%d|event_type=%d", event->fd, event->from_id, event->type);
+	
 #ifdef SW_USE_OPENSSL
     if (swReactorThread_check_ssl_state(conn) < 0)
     {
@@ -1099,7 +1129,7 @@ static int swReactorThread_onReceive_buffer_check_length(swReactor *reactor, swE
 
     if (swProtocol_recv_check_length(protocol, conn, conn->object) < 0)
     {
-        swTrace("Close Event.FD=%d|From=%d", event->fd, event->from_id);
+        swTrace("Close Event fd=%d|from_id=%d", event->fd, event->from_id);
         swReactorThread_onClose(reactor, event);
     }
 
