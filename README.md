@@ -6,4 +6,4 @@ __原版地址__：<https://github.com/swoole/swoole-src>
 目的
 ------
 
-实现针对连接的有状态的RPC服务。
+实现当dispatch_mode=2时针对连接的有状态的RPC服务。
