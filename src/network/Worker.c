@@ -20,6 +20,9 @@
 #include <pwd.h>
 #include <grp.h>
 
+//by qifei
+static unsigned int swWorker_tcp_conn_count = 0;
+
 static int swWorker_onPipeReceive(swReactor *reactor, swEvent *event);
 
 int swWorker_create(swWorker *worker)
@@ -64,14 +67,33 @@ void swWorker_signal_handler(int signo)
     switch (signo)
     {
     case SIGTERM:
-        if (SwooleG.main_reactor)
-        {
-            SwooleG.main_reactor->running = 0;
-        }
-        else
-        {
-            SwooleG.running = 0;
-        }
+		//处理完当前连接后无损重启 by qifei
+		if (SwooleG.serv->dispatch_mode == SW_DISPATCH_FDMOD)
+		{
+			SwooleG.serv->workers[SwooleWG.id].status = SW_WORKER_DEL;
+			if (swWorker_tcp_conn_count == 0)
+			{
+				if (SwooleG.main_reactor)
+				{
+					SwooleG.main_reactor->running = 0;
+				}
+				else
+				{
+					SwooleG.running = 0;
+				}
+			}
+		}
+		else
+		{
+			if (SwooleG.main_reactor)
+			{
+				SwooleG.main_reactor->running = 0;
+			}
+			else
+			{
+				SwooleG.running = 0;
+			}
+		}
         break;
     case SIGALRM:
         swTimer_signal_handler(SIGALRM);
@@ -137,8 +159,6 @@ int swWorker_onTask(swFactory *factory, swEventData *task)
     swServer *serv = factory->ptr;
     swString *package = NULL;
     swDgramPacket *header;
-	//by qifei
-	static unsigned int tcp_conn_count = 0;
 
 #ifdef SW_USE_OPENSSL
     swConnection *conn;
@@ -152,7 +172,7 @@ int swWorker_onTask(swFactory *factory, swEventData *task)
 	//by qifei
 	swTrace("task: worker_id=%d|pid=%d|info_type=%d|fd=%d|len=%d|from_id=%d|tcp_conn_count=%d|request_count=%d|max_request=%d",
 			SwooleWG.worker->id, SwooleWG.worker->pid, task->info.type, task->info.fd, task->info.len, task->info.from_id,
-			tcp_conn_count, SwooleWG.request_count, SwooleWG.max_request);
+			swWorker_tcp_conn_count, SwooleWG.request_count, SwooleWG.max_request);
 	
     switch (task->info.type)
     {
@@ -230,8 +250,8 @@ int swWorker_onTask(swFactory *factory, swEventData *task)
             bzero(&conn->ssl_client_cert, sizeof(conn->ssl_client_cert.str));
         }
 #endif
+		swWorker_tcp_conn_count--;
 		if (serv->dispatch_mode == SW_DISPATCH_FDMOD) {
-			tcp_conn_count--;
 			SwooleWG.request_count++;
 			sw_atomic_fetch_add(&SwooleStats->request_count, 1);
 		}
@@ -248,9 +268,7 @@ int swWorker_onTask(swFactory *factory, swEventData *task)
             conn->ssl_client_cert.size = conn->ssl_client_cert.length = task->info.len;
         }
 #endif
-		if (serv->dispatch_mode == SW_DISPATCH_FDMOD) {
-			tcp_conn_count++;
-		}
+		swWorker_tcp_conn_count++;
         if (serv->onConnect)
         {
             serv->onConnect(serv, task->info.fd, task->info.from_id);
@@ -281,17 +299,19 @@ int swWorker_onTask(swFactory *factory, swEventData *task)
 		{
 			serv->workers[SwooleWG.id].status = SW_WORKER_DEL;
 		}
-		if (tcp_conn_count==0 && serv->workers[SwooleWG.id].status == SW_WORKER_DEL) {
+		if (swWorker_tcp_conn_count==0 && serv->workers[SwooleWG.id].status == SW_WORKER_DEL) {
 			SwooleG.running = 0;
 			SwooleG.main_reactor->running = 0;
 			swNotice("worker will exit|worker_id=%d|pid=%d|tcp_conn_count=%d|request_count=%d|max_request=%d",
-					SwooleWG.worker->id, SwooleWG.worker->pid, tcp_conn_count, SwooleWG.request_count, SwooleWG.max_request);
+					SwooleWG.id, SwooleWG.worker->pid, swWorker_tcp_conn_count, SwooleWG.request_count, SwooleWG.max_request);
 		}
 	} else {
 		if (!SwooleWG.run_always && SwooleWG.request_count >= SwooleWG.max_request)
 		{
 			SwooleG.running = 0;
 			SwooleG.main_reactor->running = 0;
+			swNotice("worker will exit|worker_id=%d|pid=%d|tcp_conn_count=%d|request_count=%d|max_request=%d",
+					 SwooleWG.id, SwooleWG.worker->pid, swWorker_tcp_conn_count, SwooleWG.request_count, SwooleWG.max_request);
 		}
 	}
     return SW_OK;
